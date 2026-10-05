@@ -1,31 +1,62 @@
-# Seguridad
+# Security Policy
 
-Proyecto comunitario en fase RC. No existe una garantía de seguridad, una auditoría externa ni soporte del fabricante.
+## Reportar una vulnerabilidad
 
-## Secretos y datos
+Si encontrás una vulnerabilidad de seguridad, **no abras un issue público con credenciales, tokens, certificados, datos internos o detalles explotables**.
 
-Mantener `.env` y `certs/key.pem` con permiso 600. `.local/` contiene backups de credenciales y debe permanecer privada. Docker y sus administradores pueden leer las variables del contenedor: la separación entre keys evita reenviarlas al destinatario incorrecto, pero no las protege del administrador del host.
+Reportala de forma privada al mantenedor del repositorio, incluyendo:
 
-No publicar `.env`, certificados/key, backups, logs del prototipo, capturas con datos internos ni salidas de `docker inspect`/`docker compose config`. `.gitignore` y `.dockerignore` reducen errores comunes, pero `git add -f` y una copia manual pueden saltarlos. El exportador de código no es un detector exhaustivo de secretos.
+- versión utilizada;
+- descripción del problema;
+- pasos para reproducirlo;
+- impacto estimado;
+- logs o capturas sanitizadas, si ayudan a reproducirlo.
 
-Los logs del bridge omiten contenido. El proveedor y VCF tienen su propio almacenamiento/auditoría: revisar retención, permisos y destino de los prompts. Configurar un proveedor externo significa que los datos enviados por VCF pueden salir de la infraestructura local.
+No incluyas API keys, archivos `.env`, claves privadas TLS ni información sensible de tu entorno.
 
-## Acceso
+## Recomendaciones de despliegue
 
-La key pública es obligatoria; no exponer el puerto a Internet. Restringir origen a los nodos/servicios VCF autorizados mediante controles de red compatibles con la publicación de puertos Docker. No se modifican reglas de firewall automáticamente.
+Antes de usar el bridge:
 
-Preferir una key upstream limitada a los modelos y cuotas del bridge. Configurar `EXPOSE_MODELS`. El bridge no tiene identidades individuales, rotación dual de keys, rate limit por usuario ni almacén de secretos externo. Una key común no sustituye los permisos RBAC de VCF.
+- protegé el archivo `.env`;
+- usá una `PUBLIC_API_KEY` distinta de la `UPSTREAM_API_KEY`;
+- utilizá HTTPS con un certificado válido para el FQDN del bridge;
+- restringí el acceso al puerto del bridge a las redes que realmente lo necesiten;
+- no publiques certificados privados ni archivos `key.pem`;
+- mantené `LOG_REQUEST_BODIES=false` salvo durante troubleshooting controlado;
+- rotá las API keys si sospechás que fueron expuestas;
+- mantené Docker, Docker Compose y la imagen base actualizados.
 
-La autenticación, integridad y permisos de las herramientas dentro de VCF siguen siendo responsabilidad de VCF y el operador. Los modelos pueden generar errores o interpretar instrucciones presentes en datos; no usar respuestas de IA como autorización automática de cambios operativos.
+Permisos recomendados:
 
-## Transporte y recursos
+```bash
+chmod 600 .env
+chmod 600 certs/key.pem
+chmod 644 certs/cert.pem
+```
 
-Verificar TLS upstream; usar CA propia antes que desactivar verificación. No se siguen redirects upstream para evitar reenviar la key a un destino alternativo. Validar la URL configurada: no debe volver al propio bridge.
+## Datos sensibles
 
-No se reenvían headers arbitrarios del cliente, cookies ni credenciales públicas. No hay proxy genérico de rutas administrativas. Tamaños y concurrencia están limitados; siguen haciendo falta vigilancia de carga y límites del proveedor.
+El bridge puede transportar prompts, respuestas del modelo, tool calls y resultados provenientes de VCF.
 
-La imagen ejecuta el servicio sin root, sin privilegios, sin Docker socket y con raíz de solo lectura. Esto no reemplaza el mantenimiento del kernel, Docker ni dependencias.
+Por ese motivo:
 
-## Reportar problemas
+- evitá registrar cuerpos completos de requests en producción;
+- revisá los logs antes de compartirlos;
+- no publiques archivos de configuración reales;
+- no subas al repositorio `.env`, certificados privados, backups ni logs.
 
-No abrir una issue pública con secretos o detalles de un cliente. Rotar una key expuesta y utilizar el canal privado que el mantenedor habilite en el repositorio definitivo. Incluir versión, reproducción mínima y logs saneados. Antes de una publicación estable, revisar avisos de seguridad de dependencias e imagen base y registrar el resultado.
+El repositorio incluye `.env.example` únicamente como plantilla de configuración.
+
+## API keys
+
+El bridge utiliza dos credenciales separadas:
+
+- `PUBLIC_API_KEY`: la utiliza VCF para autenticarse contra el bridge.
+- `UPSTREAM_API_KEY`: la utiliza el bridge para autenticarse contra el proveedor OpenAI-compatible.
+
+No reutilices la misma clave para ambos lados.
+
+## Versiones
+
+Las correcciones de seguridad se aplicarán sobre la versión más reciente publicada del proyecto.
